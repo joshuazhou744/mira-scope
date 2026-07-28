@@ -85,7 +85,7 @@ cross-attention. Any difference in generation can be attributed to the SCOPE mec
 
 
 #### World Model 1B (trained on Codec v1)
-| | AdaLN (no RunPod credits, too poor) | SCOPE |
+| | AdaLN | SCOPE |
 | --- | --- | --- |
 | Diffusion transformer hyperparams | --- | 16 layers, 1024 hidden dim, 16 heads |
 | Training | --- | 16 batch size, 2x5090 |
@@ -195,5 +195,5 @@ uv run python scripts/demo/client.py \
 
 Apache License 2.0, see [LICENSE](LICENSE). 
 
-Meta's DINOv3 License, see [DINOv3 License](DINOV3_LICENSE.md).
+Meta's DINOv3 License, see [DINOv3 License](DINOv3_LICENSE.md).
 
