@@ -1,5 +1,5 @@
 # RAEv2 codec with 2x temporal downsampling (40 frames @ 20 fps -> 20 latents @ 10 fps ->
-# 40 frames @ 20 fps): a frozen DINOv3-L/16 backbone with layer aggregation and a strided-conv
+# 40 frames @ 20 fps): a frozen DINOv3-B/16 backbone with layer aggregation and a strided-conv
 # bottleneck, feeding a ViT video decoder. Loss = L1 + LPIPS + DINO latent consistency, with
 # auto-weight balancing of the perceptual terms against the L1 anchor.
 
@@ -26,7 +26,9 @@ architecture:
     _target_: mira.codec.VideoCodecConfig
     encoder:
       latent_dim: 32
+      # rae_model: dinov3_vitb16 # smaller feature extractor
       rae_model: dinov3_vitl16
+      # aggregation_layers: [2, 5, 8, 11]
       aggregation_layers: [11, 13, 15, 17, 19, 21, 23]
       bottleneck:
         stride: 2
@@ -34,10 +36,10 @@ architecture:
         noise_tau: 0.0
       compile_dino: ${run.compile}
       video:
-        height: 288
-        width: 512
+        height: 160
+        width: 288
         channels: 3
-        timesteps: 40
+        timesteps: 16
         fps: ${dataset.target_fps}
 
     decoder:
@@ -51,5 +53,5 @@ architecture:
       mlp_dim_multiplier: 4
       qk_norm: layernorm
       patch_size: 16
-      patch_size_t: 2
+      patch_size_t: ${..encoder.bottleneck.temporal_stride}
       video: ${..encoder.video}

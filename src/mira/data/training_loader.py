@@ -122,7 +122,10 @@ class _VideoActionIterable(IterableDataset):
         actions = ActionTensors(config=self.action_config, batch_size=1)
         actions.key_presses = clip.actions[p].unsqueeze(0).to(torch.int32)  # (1, T, n_keys)
         n_steps = actions.key_presses.shape[1]
-        actions.mouse_movements = torch.zeros((1, n_steps, 2), dtype=torch.float32)
+        if clip.mouse is not None:
+            actions.mouse_movements = clip.mouse[p].unsqueeze(0).to(torch.float32)
+        else:
+            actions.mouse_movements = torch.zeros((1, n_steps, 2), dtype=torch.float32)
         # Keyboard-only data has no mouse sensitivity; NaN is the encoder's "unknown" signal.
         actions.game_mouse_sensitivity = torch.full((1,), float("nan"), dtype=torch.float32)
 

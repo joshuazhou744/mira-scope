@@ -58,6 +58,7 @@ logging.basicConfig(format="%(message)s", datefmt="[%X]", handlers=[RichHandler(
 
 logger = logging.getLogger(__name__)
 
+torch.set_float32_matmul_precision("high")
 
 def _autocast(device: int | str | torch.device):
     """bfloat16 autocast on CUDA, a no-op elsewhere (so the trainer runs on CPU too)."""

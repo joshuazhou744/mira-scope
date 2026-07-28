@@ -1,104 +1,200 @@
-## MIRA: Multiplayer Interactive World Models with Representation Autoencoders
+> This project is a fork of MIRA (refer to its [technical report](https://arxiv.org/abs/2607.05352) for full technical details). The original project's README is preserved at [README_ORIGINAL.md](README_ORIGINAL.md).
 
-[![Live demo](https://img.shields.io/badge/demo-mira--wm.com-0091FF.svg)](https://mira-wm.com)&nbsp;
-[![Paper](https://img.shields.io/badge/paper-technical%20report-b31b1b.svg)](https://arxiv.org/abs/2607.05352)&nbsp;
-[![Dataset](https://img.shields.io/badge/%F0%9F%A4%97%20dataset-rocket--science-yellow.svg)](https://huggingface.co/datasets/kyutai/rocket-science)&nbsp;
-[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+## MIRA-SCOPE for FPS World Modelling
 
-https://github.com/user-attachments/assets/ca82b521-3e53-4f1b-8b27-9126a49aa5ea
+https://github.com/user-attachments/assets/ff8cd636-3dcc-4b95-a9e7-9efa4a4f0028
 
-MIRA is a real-time world model of Rocket League: a 5B parameters
-latent diffusion model generates the video frame by frame from all four players' actions, so a full 2v2
-match can be played inside the model at 20 FPS on a single GPU. Play it live at
-[mira-wm.com](https://mira-wm.com).
+MIRA-SCOPE is a proof of concept CS:GO world model that adapts MIRA's autoencoder and diffusion architecture to an FPS world, integrating action decoupling inspired by SCOPE. The world model is built on a codec that uses a frozen **DINOv3** encoder for feature extraction.
 
-This is the official code release for the technical report:<br>
-[MIRA: Multiplayer Interactive World Models with Representation Autoencoders](https://arxiv.org/abs/2607.05352), a collaboration between<br>
-[General Intuition](https://www.generalintuition.com), [Kyutai](https://kyutai.org), and [Epic Games](https://www.epicgames.com/site/home).
+The idea borrowed from SCOPE is separating in-scope effects local to specific areas in generation like weapon 
+recoil, muzzle flash, from out-of-scope world generation, stable background scene that updates globally with actions.
+In MIRA-SCOPE, all actions stay on MIRA's Adaptive LayerNorm (AdaLN) action conditioning path while certain actions are routed
+through per-block cross-attention modules allowing the model to learn localized effects in the generated latent.
 
-<img width="1491" height="533" alt="architecture" src="https://github.com/user-attachments/assets/4f0fa7c7-aa27-48ed-9b08-4ebaade65f4d" />
+Tong et al., *SCOPE: Simulating Cross-game Operations in Playable Environments for FPS World Models*, 2026. <br>
+[Paper](https://arxiv.org/abs/2605.23345) · [Code](https://github.com/z2tong/SCOPE)
 
-```
-@article{mira2026,
-  title={{MIRA}: Multiplayer Interactive World Models with Representation Autoencoders},
-  author={Hu, Anthony and Volhejn, V{\'a}clav and Ramanana Rahary, Adrien and Mulder, Chris and Makkar, Aditya and Liao, Alyx and Royer, Am{\'e}lie and Orsini, Manu and Jelley, Adam and Alonso, Eloi and Laurent, Florian and Nor{\'e}n, Fredrik and Swingos, James and H{\"u}nermann, Jan and Rollins, Kent and Hosseini, Lucas and Le Cauchois, Matthieu and Peter, Maxim and de Witte, Pim and Brown, Tim and Micheli, Vincent and B{\"o}hle, Moritz and de Marmiesse, Gabriel and Sharmanska, Viktoriia and Specia, Lucia and Black, Michael and P{\'e}rez, Patrick},
-  year={2026},
-  note={Technical Report},
-}
-```
+### SCOPE Action Conditioning
 
-### Installation
+![transformer-diagram](https://github.com/joshuazhou744/mira-scope/blob/2779ea5221270d751fdb32a095c7a9ba26bf80da/public/transformer-diagram.png)
 
-```bash
-pixi run setup   # one-time: creates the environment and installs MIRA (requires an NVIDIA GPU)
-pixi run test    # run the test suite
-```
+SCOPE adds a step before AdaLN using `ActionModule`.
+AdaLN is always present for global action conditioning. SCOPE is an additive route for specifically chosen actions.
 
-Requires [pixi](https://pixi.sh) and torch >= 2.8 (installed for you).
+![adaln-diagram](https://github.com/joshuazhou744/mira-scope/blob/2779ea5221270d751fdb32a095c7a9ba26bf80da/public/adaln-diagram.png)
+
+AdaLN is a global modulation of all positions of the latent grid (one gamma and beta, per channel scale and bias).
+
+![scope-diagram](https://github.com/joshuazhou744/mira-scope/blob/64171858e238ee46018062e0936a61561ec8d346/public/scope-diagram.png)
+
+The `ActionModule` block takes scoped actions (fire, reload, weapon change) from a separate encoder 
+and attends latent grid tokens to them (latent positions are queries, scoped actions are keys and values).
+This allows each region of the frame to learn action effects independently.
+The output projection of `ActionModule` is zero-initialized so it's gradually learned.
 
 ### Dataset
 
-Each sample is a 4-second window of a 2v2 match, captured from all four players' synchronised views.
-For every frame of every view, the dataset provides the video frame, the player's keyboard action,
-and the game state (ball, cars, and score). The full dataset is on
-the [HuggingFace Hub](https://huggingface.co/datasets/kyutai/rocket-science) (see the
-[dataset card](docs/dataset_card.md)).
+MIRA-SCOPE trains on single-player, deathmatch-style CS:GO data. We use the CS:GO Deathmatch dataset from Pearce & Zhu: ~5,500 matches scraped from online CS:GO deathmatches on the Dust2 map.
+Each match is ~1000 frames at 16 FPS, ~62.5 seconds of data. Each frame is matched with recorded keyboard/mouse action inputs.
+The dataset provides raw keyboard inputs and mouse movements one-hot encoded over 23 x-axis and 15 y-axis bins.
+The [convert_csgo_data.py](scripts/convert_csgo_data.py) script decodes the bins into scalar floats, then aggregates all actions over each pair of frames to match the time-downsampled latents.
+This is the same dataset used to train the DIAMOND CS:GO diffusion world model.
 
-```python
-from mira.data import RocketScienceDataset
+Pearce & Zhu, *Counter-Strike Deathmatch with Large-Scale Behavioural Cloning*, IEEE CoG 2022 (Best Paper). <br>
+[Paper](https://arxiv.org/abs/2104.04258) · [Code](https://github.com/TeaPearce/Counter-Strike_Behavioural_Cloning) · [Data](https://huggingface.co/datasets/TeaPearce/CounterStrike_Deathmatch)
 
-# Download the test split. shards=1 pulls just one shard for a quick look; omit it for the full split.
-ds = RocketScienceDataset.from_hub("kyutai/rocket-science", split="test", shards=1)
-
-# Load the clips of the first match (16 frames each, sampled at 20 FPS) and take the first one.
-clips = ds.load_match(ds.match_ids()[0], clip_len=16, target_fps=20)
-clip = clips[0]
-
-# A clip holds P=4 synchronised player views over T=16 frames:
-clip.frames    # tensor (P, T, C, H, W) uint8 — the rendered video, one per player
-clip.actions   # tensor (P, T, 9)       int32 — multi-hot keyboard state, aligned to each frame
-clip.events    # list of game events overlapping this window (goals, boost pickups, ...)
-clip.physics   # per player, per frame: game state (ball, cars, score)
-```
-
-Explore it interactively (4-player grid, keyboard overlay, top-down overview of the game using the game state):
-
-```bash
-pixi run explore
-```
+Alonso et al., *Diffusion for World Modeling: Visual Details Matter in Atari*, NeurIPS 2024. <br>
+[Paper](https://arxiv.org/abs/2405.12399) · [Code](https://github.com/eloialonso/diamond)
 
 ### Training
 
-Entry points under `scripts/` are Hydra apps — override any config key as `key=value`. Multi-GPU runs
-go through `torchrun`; single-GPU works too.
+We trained in two stages. First the codec, a frozen DINOv3 encoder paired with a learned decoder, trained to
+compress CS:GO frames into a compact latent grid and reconstruct them back to game frames.
+
+On top of the frozen codec we trained the world model, a flow-matching diffusion transformer that predicts the next
+latent frames from past frames and player actions. To ablate SCOPE we trained two arms that are 
+identical in every way (same codec, same data, same hyperparameters) except how combat actions are conditioned. A baseline
+routes all actions through MIRA's AdaLN path, and a SCOPE arm that additionally routes localized combat actions through per-block
+cross-attention. Any difference in generation can be attributed to the SCOPE mechanism alone.
+
+### Training Specifications
+
+#### Codec
+| | Codec v0 | Codec v1 |
+| --- | --- | --- |
+| Feature extractor (encoder) | DINOv3-B/16 | DINOv3-L/16
+| Aggregation layers | [2, 5, 8, 11] | [11, 13, 15, 17, 19, 21, 23]
+| ViT decoder | 1024 width, 24 depth | 1152 width, 28 depth |
+| Latent grid | 5×9×32, 2× temporal | 5×9×32, 2× temporal |
+| Training | 16 batch size, 2×4090 | 8 batch size (global batch 16), 2×5090  |
+| Steps | 100k | 100k |
+| Final Validation LPIPS | 0.184 | 0.193 |
+| Final Validation Total Loss | 0.235 | 0.244 |
+| Total params | 497M | 900M |
+
+
+#### World Model 800M Checkpoint (trained on Codec v0)
+| | AdaLN | SCOPE |
+| --- | --- | --- |
+| Diffusion transformer hyperparams | 16 layers, 1024 hidden dim, 16 heads | 16 layers, 1024 hidden dim, 16 heads |
+| Training | 16 batch size, 2x5090 | 16 batch size, 2x5090 |
+| Steps | 100k | 100k |
+| Final Validation LPIPS | 0.269 | 0.267 |
+| Final Validation Total Loss | 0.283 | 0.276 |
+| Total params | 796M | 862M |
+
+
+#### World Model 1B (trained on Codec v1)
+| | AdaLN (no RunPod credits, too poor) | SCOPE |
+| --- | --- | --- |
+| Diffusion transformer hyperparams | --- | 16 layers, 1024 hidden dim, 16 heads |
+| Training | --- | 16 batch size, 2x5090 |
+| Steps | --- | 100k |
+| Final Validation LPIPS | --- | 0.278 |
+| Final Validation Total Loss | --- | 0.365 |
+| Total params | --- | 1.27B |
+
+> not necessarily worse, but not better than the 800M checkpoints
+
+### Reproducing the Training (on RunPod)
+
+1. **Install the environment** and download the gated DINOv3 encoder weights, see the `Installation` and `Training` sections of [README_ORIGINAL.md](README_ORIGINAL.md). You need `RS_DINO_WEIGHTS_DIR` pointing at the DINOv3 `.pth` (world-model training/inference don't need it, codec training does).
+    - 1.2B checkpoint uses `dinov3_vitl16_pretrain_lvd1689m-8aa4cbdd.pth`, 800M checkpoint uses `dinov3_vitb16_pretrain_lvd1689m-73cec8be.pth`
+2. **Train the codec** using steps (clone/install, environment, dataset build from the TeaPearce HDF5 files, and the `torchrun` launch) from: [train_codec](train_codec.md).
+3. **Train the world model** on a finished codec checkpoint, for either the AdaLN baseline or the SCOPE arm: [train_wm.md](train_wm.md).
+
+### Visualizations
+
+<table>
+<tr>
+<td align="center">SCOPE 862M Final Validation</td>
+<td align="center">AdaLN 796M Final Validation</td>
+</tr>
+<tr>
+<td width="50%">
+
+https://github.com/user-attachments/assets/57f3f243-ca12-459a-8779-3bb6a7ea4bbb
+
+</td>
+<td width="50%">
+
+https://github.com/user-attachments/assets/e27ccb4b-190e-486b-9086-8788286a5057
+
+</td>
+</tr>
+</table>
+
+
+<table>
+<tr>
+<td>DINO-L Codec Reconstruction Final Validation</td>
+</tr>
+<tr>
+<td>
+
+https://github.com/user-attachments/assets/b4bb3ee4-bb5b-4e01-b153-8f348ad5e822
+
+</td>
+</tr>
+
+<tr>
+<td>DINO-B Codec Reconstruction Final Validation</td>
+</tr>
+<tr>
+<td>
+
+https://github.com/user-attachments/assets/e35cf88a-8f22-4f5c-bff9-5dc05cf323ef
+
+</td>
+</tr>
+</table>
+
+> Batch size 8 for DINO-L, 16 for DINO-B (validation batch size matches training)
+
+### Live Demo
+
+This project includes a script [stream_harness.py](scripts/demo/stream_harness.py) to test world model checkpoints at specific configs (diffusion steps, generation length, generation initial frames).
+
+It also includes [server.py](scripts/demo/server.py) and [client.py](scripts/demo/client.py) scripts to set up a websocket for bidirectional 
+communication between a world model generating frames (server) and a pygame client that sends user inputs (actions) and displays rollouts 
+accordingly from the server.
 
 ```bash
-# Train the codec
-python scripts/train_codec.py dataset.train_index=/path/to/train dataset.test_index=/path/to/test
+# start server
+# --compile for slow start but faster generation
+uv run python scripts/demo/server.py \
+    --checkpoint path/to/checkpoint.pth \
+    --data $MIRA_DATA_DIR/path/to/index \
+    --match <match_name_in_index> \
+    --clip <clip_index_in_match> \
+    --host 0.0.0.0 \
+    --port 8765 \
+    --steps <n_diffusion_steps> \
+    --compile
 
-# Train the single-player world model
-python scripts/train_world_model.py \
-    model.architecture.config.codec_checkpoint=/path/to/codec_ckpt \
-    dataset.train_index=/path/to/train dataset.test_index=/path/to/test
+# if the server runs on a remote pod, tunnel its port to your local machine
+ssh -N -L 8765:localhost:8765 root@<POD_IP> -p <POD_PORT> -i ~/.ssh/id_ed25519
 
-# Train the 4-player world model, warm-started from a single-player checkpoint
-python scripts/train_world_model.py model=multi_wrapper_world_model dataset.n_players=4 \
-    model.architecture.config.wm_config.codec_checkpoint=/path/to/codec_ckpt \
-    run.finetune_from=/path/to/single_player_ckpt \
-    dataset.train_index=/path/to/train dataset.test_index=/path/to/test
+# start client (on your local machine)
+uv run python scripts/demo/client.py \
+    --server ws://localhost:8765 \
+    --record <out_file.mp4> \
+    --sens-x 6.0 \
+    --sens-y 3.0
 ```
 
-Codec training uses a frozen **DINOv3-L/16** encoder whose weights are gated by Meta. Download
-`dinov3_vitl16_pretrain_lvd1689m-8aa4cbdd.pth` from the
-[DINOv3 page](https://ai.meta.com/resources/models-and-libraries/dinov3-downloads/) and set
-`RS_DINO_WEIGHTS_DIR=/path/to/weights`. World-model training and inference don't need it.
+### Limitations
 
-### Evaluation
-
-```bash
-python scripts/eval_world_model_offline.py /path/to/checkpoint-1000/checkpoint.pth
-```
+| Generation Observation | Cause (Guessed) | Proposed Fix |
+| --- | --- | --- |
+| Weapon actions unstable, randomly change | Training data has lots of instances where player dies mid-fight (while shooting), world model may learn shoot = death and trigger death animation (or some messed up version). Weapons are tracked by change, not a continuous state | May be an inherent flaw in training SCOPE action conditioning on data without player states (health, enemies). Forward-fill weapon changes to allow the model to learn from continuous state rather than re-generating from previous frames |
+| Player teleports to a new location when panning camera too fast | Respawn scene cuts in the deathmatch data which the model learns to reproduce, model generation also may get confused during sharp camera pans past a small training window | Segment training clips to be continuous gameplay, increase training context window length |
+| Random deaths and poor enemy permanence | Enemies have no conditioning signal so interactions are learned visually | Hard to fully fix, MIRA's multiplayer Rocket League handles opponents better because it conditions on all 4 players' actions in a contained map (no game-state conditioning needed) |
+| Long rollout degrades | Autoregressive drift accumulating, expected in MIRA | Longer training context window and context-noise augmentation for drift recovery |
 
 ### License
 
-Apache License 2.0 — see [LICENSE](LICENSE).
+Apache License 2.0, see [LICENSE](LICENSE). 
+
+Meta's DINOv3 License, see [DINOv3 License](DINOV3_LICENSE.md).
+

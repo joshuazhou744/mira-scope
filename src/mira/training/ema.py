@@ -93,11 +93,13 @@ class DistributedEMA(nn.Module):
         self.decay = decay
         # Defaults to CPU; pass the training device when ``update`` will be fed CUDA tensors, else the
         # `_ema * decay + batch_mean` below hits a device mismatch.
-        self.register_buffer("_ema", torch.tensor(initial_value, dtype=torch.double, device=device))
+        dtype = torch.float32 if torch.backends.mps.is_available() else torch.double # MPS support
+        self._dtype = dtype
+        self.register_buffer("_ema", torch.tensor(initial_value, dtype=dtype, device=device))
 
     def update(self, values: Tensor) -> None:
         """Update EMA with the mean of ``values`` (local to this rank)."""
-        batch_mean = values.detach().to(dtype=torch.double).mean()
+        batch_mean = values.detach().to(dtype=self._dtype).mean()
         self._ema = self.decay * self._ema + (1 - self.decay) * batch_mean
 
     def all_reduce(self) -> None:

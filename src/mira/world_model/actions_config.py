@@ -32,6 +32,7 @@ class ActionConfig(BaseModel):
     """
 
     valid_keys: list[str]
+    scope_keys: list[str] = [] # in-scope actions routed through SCOPE cross-attention
     source_fps: int = 20  # the 4-player Rocket League recordings are ~20fps
     target_fps: int = 10
 

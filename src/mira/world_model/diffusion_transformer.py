@@ -91,6 +91,7 @@ class DiffusionTransformer(nn.Module):
                     causal=config.causal,
                     time_attention=has_time_attention(i, config.n_layers),
                     ada_attn_ln=config.ada_attn_ln,
+                    use_scope=config.action_conditioning == "scope",
                 )
                 for i in range(config.n_layers)
             ]
@@ -112,6 +113,7 @@ class DiffusionTransformer(nn.Module):
         clean_past: Tensor | None = None,
         # Per-call bool override of checkpointing (None = derive from the config).
         activation_checkpointing: bool | None = None,
+        combat_tokens: Tensor | None = None,
     ) -> Tensor | tuple[Tensor, list]:
         if activation_checkpointing is None:
             activation_checkpointing = self.config.activation_checkpointing is True
@@ -151,7 +153,7 @@ class DiffusionTransformer(nn.Module):
         sequence = z_t  # (b t h w c)
         cond = a + tau_emb  # (b t h w c)
 
-        if (self.register_tokens is not None) and (kv_caches is None):
+        if (self.register_tokens is not None) and (kv_caches is None): # must pad register tokens on SCOPE runs
             register_tokens = self.register_tokens.repeat(b, 1, h, w, 1)
             sequence = torch.cat([register_tokens, sequence], dim=1)
 
@@ -175,6 +177,7 @@ class DiffusionTransformer(nn.Module):
                     cond,
                     temporal_rotary_emb,
                     spatial_rotary_emb,
+                    combat_tokens=combat_tokens,
                     use_reentrant=False,
                 )
             else:
@@ -186,6 +189,7 @@ class DiffusionTransformer(nn.Module):
                     spatial_rotary_emb=spatial_rotary_emb,
                     return_kv=return_kv,
                     kv_cache=kv_cache_i,
+                    combat_tokens=combat_tokens
                 )
                 if return_kv:
                     new_kv_caches.append(to_cache)

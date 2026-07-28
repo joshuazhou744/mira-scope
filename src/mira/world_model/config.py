@@ -71,6 +71,11 @@ class LatentWorldModelConfig(BaseModel):
     # as in standard DiT. The default applies MLP-only conditioning and keeps the extra parameters
     # out of the state dict for strict loading.
     ada_attn_ln: bool = False
+    # Action conditioning scheme
+    # adaln: baseline (MIRA vanilla), all actions route through AdaLN (global)
+    # scope: SCOPE arm, localized combat actions are ALSO routed through a per-block cross-attention
+    # ActionModule (in AdaSTBlock). Global actions stay routed through AdaLN.
+    action_conditioning: Literal["adaln", "scope"] = "adaln"
 
     n_context_frames: int = 39  # only used during inference
 

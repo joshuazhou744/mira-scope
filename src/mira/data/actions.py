@@ -22,6 +22,7 @@ from .clips import compute_stride
 if TYPE_CHECKING:
     import torch
 
+
 # Stable, documented ordering of the 9 keys present in the 4-player Rocket League data.
 # (drive: W/S, steer/air: A/D, jump: Space, boost: LShiftKey, drift/air-roll: LControlKey,
 #  plus Q/E powerslide/air-roll binds). These are the keys present in the data.
@@ -116,4 +117,41 @@ def tensorize_actions(
 
     if not steps:
         return torch.zeros((0, n_keys), dtype=torch.int32)
+    return torch.stack(steps, dim=0)
+
+def tensorize_mouse(
+    lines: Iterable[str | bytes],
+    source_fps: float,
+    target_fps: int,
+    keep_last_partial: bool = False,
+) -> torch.Tensor:
+    """
+    Parse per-frame `.jsonl` lines into a (n_steps, 2) float32 tensor of mouse (dx, dy) deltas.
+
+    Mirrors `tensorize_actions`' windowing, but deltas are SUMMED over each downsampling window
+    (movements accumulate, unlike keys which are OR-ed). Lines without a "mouse" field (e.g.
+    keyboard-only Rocket League data) contribute zeros.
+    """
+    import torch
+
+    factor = compute_stride(source_fps, target_fps)
+    steps: list[torch.Tensor] = []
+    window = torch.zeros(2, dtype=torch.float32)
+    count = 0
+
+    for line in lines:
+        line = line.strip()
+        mouse = json.loads(line).get("mouse") or [0.0, 0.0] if line else [0.0, 0.0]
+        window += torch.tensor(mouse, dtype=torch.float32)
+        count += 1
+        if count == factor:
+            steps.append(window)
+            window = torch.zeros(2, dtype=torch.float32)
+            count = 0
+        
+    if keep_last_partial and count > 0:
+        steps.append(window)
+    
+    if not steps:
+        return torch.zeros((0, 2), dtype=torch.float32)
     return torch.stack(steps, dim=0)

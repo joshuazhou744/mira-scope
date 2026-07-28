@@ -227,3 +227,35 @@ class ActionEncoder(torch.nn.Module):
         initial_action_token = self.initial_action_token.expand(batch_size, -1, -1)
         actions_embed = torch.cat([initial_action_token, actions_embed], dim=1)
         return actions_embed
+
+class CombatActionEncoder(nn.Module):
+    """Encodes the in-scope (combat) keys into per-latent-frame tokens for SCOPE cross-attention.
+    
+    Mirrors ActionEncoder's temporal handling (pool action-steps -> latent frames, prepend an INIT token)
+    so the tokens align frame-to-frame with the AdaLN embedding `a`. Selects the scope_keys columns
+    from key_presses and embeds each key's on/off state into its own token.
+    Output: (B, T, M, dim), M = number of scope keys
+    """
+    def __init__(self, scope_index: list[int], dim: int, temporal_downsampling: int):
+        super().__init__()
+        self.scope_index = scope_index
+        self.temporal_downsampling = temporal_downsampling
+        # one on/off embedding table per in-scope key -> that key's embedding depending on its state
+        self.key_embeds = nn.ModuleList([nn.Embedding(2, dim) for _ in scope_index])
+        # learned INIT token (action before frame 0), one per key slot in scope_index
+        self.init_token = nn.Parameter(0.02 * torch.randn(1, 1, len(scope_index), dim))
+
+    def forward(self, key_presses: Tensor) -> Tensor:
+        # key_presses: (B, n_action_steps, num_keys)
+        b = key_presses.shape[0]
+        # embed each scope key's on/off -> (B, n_action_steps, M, dim)
+        toks = torch.stack(
+            [emb(key_presses[:, :, index].long()) for emb, index in zip(self.key_embeds, self.scope_index)],
+            dim=2
+        )
+        # temporal pool: (B, n_pooled, td, M, dim) -> mean over td -> (B, n_pooled, M, dim)
+        toks = toks.unflatten(1, (-1, self.temporal_downsampling)).mean(dim=2)
+        # prepend INIT so token[t] is the action that led to frame t -> (B, T, M, dim)
+        # T = n_pooled + 1 (INIT token)
+        return torch.cat([self.init_token.expand(b, -1, -1, -1), toks], dim=1)
+        

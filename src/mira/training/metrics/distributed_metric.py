@@ -16,7 +16,9 @@ class DistributedMetric(nn.Module):
 
     def __init__(self, device: str | int | torch.device = "cpu"):
         super().__init__()
-        self.register_buffer("_sum", torch.zeros((), dtype=torch.double, device=device))
+        dtype = torch.float32 if torch.backends.mps.is_available() else torch.double # MPS support
+        self._dtype = dtype
+        self.register_buffer("_sum", torch.zeros((), dtype=dtype, device=device))
         self.register_buffer("_n", torch.zeros((), dtype=torch.long, device=device))
 
     def reset(self) -> None:
@@ -25,7 +27,7 @@ class DistributedMetric(nn.Module):
 
     def update(self, values: Tensor) -> None:
         """Accumulate all elements of ``values``."""
-        self._sum += values.detach().sum().to(dtype=torch.double)
+        self._sum += values.detach().sum().to(dtype=self._dtype)
         self._n += values.numel()
 
     def all_reduce(self) -> None:

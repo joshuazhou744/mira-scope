@@ -29,6 +29,34 @@ class FeedForward(nn.Module):
     def forward(self, x: Tensor) -> Tensor:
         return self.output_linear(F.silu(self.swish_linear(x)) * self.gate_linear(x))
 
+class ActionModule(nn.Module):
+    """SCOPE style per-block cross-attention: latent positions (queries) attend to specific actions (keys/values) so localized
+    actions (fire, reload, change weapon) can affect specific areas of the latent grid whereas AdaLN is per-channel modulation.
+
+    The output projection `wo` is zero-initialized so at init the module outputs zeros and the SCOPE arm is identical to AdaLN
+    baseline, it learns its influence gradually.
+    """
+    def __init__(self, dim: int, num_heads: int):
+        super().__init__()
+        self.num_heads = num_heads
+        self.head_dim = dim // num_heads
+        self.q_ln = nn.LayerNorm(dim)
+        self.wq = nn.Linear(dim, dim, bias=False)
+        self.wkv = nn.Linear(dim, 2*dim, bias=False)
+        self.wo = nn.Linear(dim, dim, bias=False)
+        nn.init.zeros_(self.wo.weight)
+
+    def forward(self, x: Tensor, tokens: Tensor) -> Tensor:
+        # x: (B, seq_len, dim) latent positions are queries
+        # tokens: (B, M, dim) combat tokens are keys and values
+        b, s, _ = x.shape
+        m = tokens.shape[1]
+        q = self.wq(self.q_ln(x)).view(b, s, self.num_heads, self.head_dim).transpose(1, 2)
+        kv = self.wkv(tokens).view(b, m, 2, self.num_heads, self.head_dim)
+        k, v = kv[:, :, 0].transpose(1, 2), kv[:, :, 1].transpose(1, 2)
+        y = F.scaled_dot_product_attention(q, k, v) # (b, num_heads, s, head_dim)
+        return self.wo(y.transpose(1, 2).reshape(b, s, -1)) # returns (b, seq_len, dim)
+        
 
 class AdaSTBlock(nn.Module):
     """Spatial attention + optional temporal attention + feed-forward, with AdaLN conditioning.
@@ -49,10 +77,12 @@ class AdaSTBlock(nn.Module):
         causal: bool,
         time_attention: bool = True,
         ada_attn_ln: bool = False,
+        use_scope: bool = False,
     ):
         super().__init__()
         self.time_attention = time_attention
         self.ada_attn_ln = ada_attn_ln
+        self.use_scope = use_scope
 
         self.space_attn_ln = (
             AdaptiveLayerNorm(config.embed_dim, cond_dim) if ada_attn_ln else nn.LayerNorm(config.embed_dim)
@@ -70,6 +100,7 @@ class AdaSTBlock(nn.Module):
 
         self.mlp_ln = AdaptiveLayerNorm(config.embed_dim, cond_dim)
         self.mlp = FeedForward(config.embed_dim)
+        self.action_module = ActionModule(config.embed_dim, config.num_heads) if use_scope else None
 
     def forward(
         self,
@@ -79,6 +110,7 @@ class AdaSTBlock(nn.Module):
         spatial_rotary_emb: Tensor | None = None,
         return_kv: bool = False,
         kv_cache: tuple[Tensor, Tensor] | None = None,
+        combat_tokens: Tensor | None = None
     ) -> tuple[Tensor, tuple[Tensor, Tensor] | None]:
         b, t, h, w, _ = x.shape
         x = rearrange(x, "b t h w c -> (b t) (h w) c")
@@ -111,6 +143,12 @@ class AdaSTBlock(nn.Module):
             x = rearrange(x, "(b h w) t c -> b t h w c", b=b, h=h, w=w)
         else:
             x = rearrange(x, "(b t) (h w) c -> b t h w c", b=b, t=t, h=h, w=w)
+        
+        if self.action_module is not None and combat_tokens is not None:
+            xq = rearrange(x, "b t h w c -> (b t) (h w) c") # latent positions (queries)
+            tok = rearrange(combat_tokens, "b t m c -> (b t) m c") # scoped action tokens (keys/values)
+            delta = self.action_module(xq, tok)
+            x = x + rearrange(delta, "(b t) (h w) c -> b t h w c", b=b, t=t, h=h, w=w)
 
         x = x + self.mlp(self.mlp_ln(x, cond))
 

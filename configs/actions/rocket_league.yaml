@@ -2,7 +2,7 @@
 # `target_fps` is the action sample rate. The world model runs frames at `video.fps` (20) and
 # actions at this rate (20), i.e. one action per video frame (the released default); the encoder
 # pools them per latent frame (action_temporal_downsampling = target_fps * codec_temporal_downsampling
-# // video.fps = 2 for the single-player td=2 codec, 1 for the multiplayer td=1 codec). Setting this
+# // video.fps = 2 for the single-player td=2 codec, 1 for the multiplayer td=1 codec). Setting this *** INCONSISTENT COMMENTS HERE
 # above `video.fps` decouples the two rates (e.g. 40 -> 2 actions/video-frame).
 target_fps: 20
 valid_keys:

@@ -21,7 +21,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from .actions import KeyVocab, tensorize_actions
+from .actions import KeyVocab, tensorize_actions, tensorize_mouse
 from .clips import compute_clip_frame_indices, compute_stride
 from .decode import decode_frames
 from .events import Event, events_in_frame_window, overlaps_any, parse_anchors, replay_spans
@@ -105,6 +105,7 @@ class MatchClip:
     metadata: list[dict]  # full per-perspective metadata
     actions: "torch.Tensor"  # (P, T, n_keys) int32 multi-hot
     events: list[Event]  # events overlapping this window (mapped via the first selected perspective)
+    mouse: "torch.Tensor | None" = None # (P, T, 2) float32 mouse (dx, dy)
     frames: "torch.Tensor | None" = None  # (P, T, C, H, W) uint8; None if decode=False
     physics: list[list[FrameState]] | None = None  # per perspective, T per-frame game-state dicts
     # (None if the dataset carries no physics). All perspectives share the same world state; kept
@@ -379,6 +380,7 @@ class RocketScienceDataset:
             act_fps, n_action_steps = action_fps, clip_len * (action_fps // target_fps)
 
         per_actions = []
+        per_mouse = []
         for i in sel:
             # All perspectives are frame-aligned, so actions use the same planned stride as the
             # frame indices (mp.src_fps), not a per-perspective re-derivation. `keep_last_partial`
@@ -399,7 +401,14 @@ class RocketScienceDataset:
                     f"{mp.entry.match_id} clip {cp.clip_id}: {a.shape[0]} action steps != {n_action_steps}"
                 )
             per_actions.append(a)
+
+            m = tensorize_mouse(chunk[i]["lines"][l0:l_end], mp.src_fps, act_fps, keep_last_partial=True)
+            if m.shape[0] < n_action_steps:
+                m = torch.cat([m, m[-1:].expand(n_action_steps - m.shape[0], -1)], dim=0)
+            per_mouse.append(m)
+
         actions = torch.stack(per_actions, dim=0)
+        mouse = torch.stack(per_mouse, dim=0)
 
         frames = None
         if decode:
@@ -428,6 +437,7 @@ class RocketScienceDataset:
             recording_offsets=[offs[i] for i in sel],
             metadata=[mp.meta[i] for i in sel],
             actions=actions,
+            mouse=mouse,
             events=events_in_frame_window(mp.events, cp.g0, cp.g_end, mp.src_fps, offs[sel[0]]),
             frames=frames,
             physics=physics,

@@ -4,8 +4,8 @@
 # `mira.data.training_loader.create_loader`.
 defaults:
   - _self_
-  - model: latent_world_model
-  - dataset: rocket_league
+  - model: latent_world_model_csgo
+  - dataset: csgo
 
 # The action vocabulary travels with the dataset; expose it at the top level for the loader.
 actions: ${dataset.actions}
@@ -19,16 +19,16 @@ wandb:
 
 run:
   seed: 28
-  steps: 250_001
-  batch_size: 1
-  checkpoint_every: "10%"
+  steps: 200_001
+  batch_size: 16
+  checkpoint_every: "5%"
   checkpoint_keep_recent: 1
-  checkpoint_keep_permanent_every: -1
-  log_every: "1%"
+  checkpoint_keep_permanent_every: "25%"
+  log_every: "0.5%"
   output_dir: "train_world_model_logs"
   # Opt-in; default off for reproducibility. When true, the codec encoder, diffusion transformer,
   # and codec decoder are compiled separately (the forward has data-dependent control flow).
-  compile: false
+  compile: true
   # Crash recovery: path or W&B URL to resume the full training state from (continues the step
   # counter). Mutually exclusive with finetune_from.
   continue_from: null
@@ -37,27 +37,27 @@ run:
   finetune_from: null
 
 dataloader:
-  num_workers: 6
-  shuffle_buffer_size: 100
+  num_workers: 8
+  shuffle_buffer_size: 500
 
 validation:
   batch_size: null  # null to use the same batch size as training
   val_first: true
-  val_n_samples: 1024
-  val_every: "2%"
-  downstream_val_every: "10%"  # how often to run the world-model metrics eval
+  val_n_samples: 64
+  val_every: "10%"
+  downstream_val_every: "5%"  # how often to run the world-model metrics eval
 
 optim:
   optimizer:
-    lr: 1e-4
+    lr: 2e-4
     betas: [0.9, 0.99]
     weight_decay: 0.1
   scheduler:
     warmup_steps: 1000
     constant_steps: 0
-    decay_steps: 0  # 0 to disable cosine decay
+    decay_steps: 199_000
     min_lr: 1e-6
-  model_ema_decay: 0.9999  # 0.0 to disable
+  model_ema_decay: 0.9999
 
 # World-model rollout metrics, evaluated every `validation.downstream_val_every`.
 world_model_metrics:
@@ -67,16 +67,16 @@ world_model_metrics:
   inference:
     schedule_type: linear
     noise_level: 0.0
-  num_samples: 2048
+  num_samples: 32
   per_device_batch_size: ${run.batch_size}
-  # 4 s eval on the shipped 4 s (80-frame @ 20 fps) chunks. With temporal_downsampling=2 the eval
-  # clip is n_context_frames + num_unrolled_frames*2 = 38 + 20*2 = 78 frames (<= 80, even so it
-  # encodes cleanly): 38 context frames (~2 s) then a 20-latent-frame (~2 s) rollout. 38 is a
-  # multiple of 2 and stays under both shipped model windows (video.timesteps 40 single / 80 multi).
-  n_context_frames: 38
-  num_unrolled_frames: 20
-  drift_metric_frames: 20
-  fdd_slice_frames: 10  # per-slice Frechet width -> 20/10 = 2 slices (at 10, 20 latent frames)
+  # 2 s eval on the converted 1000-frame chunks. With temporal_downsampling=2 the eval
+  # clip is n_context_frames + num_unrolled_frames*2 = 16 + 8*2 = 32 frames (<= 1000, even so it
+  # encodes cleanly): 16 context frames (~1 s) then a 8-latent-frame (~1 s) rollout. 16 is a
+  # multiple of 2 and the whole 32-frame clip exactly fills the model window
+  n_context_frames: 32
+  num_unrolled_frames: 8
+  drift_metric_frames: 8
+  fdd_slice_frames: 4  # per-slice Frechet width -> 8/4 = 2 slices
   eval_temporal_downsampling: null
   compile: ${run.compile}
   dino_max_chunk_size: 128  # max frames per DINO forward pass, reduces peak memory

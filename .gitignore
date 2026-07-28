@@ -1,0 +1,12 @@
+**/__pycache__
+**/outputs
+train_codec_logs
+train_world_model_logs
+.env
+scripts/tests/
+
+scope_clips/
+scope_dinol_clips/
+adaln_clips/
+
+public/mira-scope-demo.mp4

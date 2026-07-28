@@ -36,7 +36,7 @@ architecture:
         # Frame rate the world model sees. action_temporal_downsampling = actions.target_fps *
         # codec_temporal_downsampling // fps sets how many actions map to each latent frame; with
         # 20fps actions and a td=2 codec that is 20*2//20 = 2 actions per latent frame.
-        fps: 20
+        fps: ${dataset.target_fps}
 
       # Path or W&B URL to the frozen codec checkpoint; required at train/eval time (override on the
       # command line). null is a placeholder so the config composes without a checkpoint.

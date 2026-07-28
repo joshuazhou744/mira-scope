@@ -1,0 +1,14 @@
+# CSGO dataset. Single-player only (n_players=1) for the codec
+defaults:
+  - /actions@actions: csgo
+  - _self_
+
+# Local paths to the split directories (or their index.json). Override on the command line, e.g.
+# `dataset.train_index=/path/to/train dataset.test_index=/path/to/test`.
+train_index: null
+test_index: null
+
+n_players: 1          # 1 for the CSGO
+target_fps: 16 # video frame rate
+frame_size: null      # native decoded size; set to [H, W] to resize decoded frames.
+exclude_replays: false  # set true for evaluation (drops clips overlapping a goal-replay span), RL only, no-op for CSGO

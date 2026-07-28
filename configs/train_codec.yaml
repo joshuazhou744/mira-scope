@@ -3,8 +3,11 @@
 # `mira.data.training_loader.create_loader`.
 defaults:
   - _self_
-  - model: raev2_codec_tdown
-  - dataset: rocket_league
+  - model: raev2_codec_csgo
+  - dataset: csgo
+  # - model: raev2_codec_tdown
+  # - dataset: rocket_league
+
 
 # The action vocabulary travels with the dataset; expose it at the top level for the loader.
 actions: ${dataset.actions}
@@ -19,11 +22,12 @@ wandb:
 
 run:
   seed: 28
-  steps: 250_001
-  batch_size: 4
-  checkpoint_every: "5%"
+  steps: 100_001
+  # steps: 250_001
+  batch_size: 16
+  checkpoint_every: "10%"
   checkpoint_keep_recent: 1
-  checkpoint_keep_permanent_every: -1
+  checkpoint_keep_permanent_every: "25%"
   log_every: "1%"
   output_dir: "train_codec_logs"
   compile: true
@@ -37,23 +41,24 @@ run:
   latents_ema_decay: 0.99
 
 dataloader:
-  num_workers: 6
-  shuffle_buffer_size: 100
+  num_workers: 8
+  shuffle_buffer_size: 500
 
 validation:
   batch_size: null  # null to use the same batch size as training
   val_first: true
-  val_n_samples: 1024
-  val_every: "2%"
+  val_n_samples: 256
+  val_every: "10%"
 
 optim:
   optimizer:
-    lr: 1e-4
+    lr: 2e-4
     betas: [0.9, 0.95]
     weight_decay: 0.1
   scheduler:
     warmup_steps: 1000
     constant_steps: 0
-    decay_steps: 249_000  # 0 to disable cosine decay; otherwise ~run.steps - warmup_steps
+    decay_steps: 99_001  # 0 to disable cosine decay; otherwise ~run.steps - warmup_steps
     min_lr: 1e-6
+  # model_ema_decay: 0.0
   model_ema_decay: 0.9999  # 0.0 to disable

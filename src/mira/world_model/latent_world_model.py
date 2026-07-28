@@ -25,7 +25,7 @@ from mira.training.checkpoints import resolve_checkpoint
 from mira.world_model.actions_config import ActionTensors
 from mira.world_model.config import LatentWorldModelConfig, WorldModelInferenceConfig
 from mira.world_model.diffusion_transformer import DiffusionTransformer
-from mira.world_model.layers.action_encoder import ActionEncoder
+from mira.world_model.layers.action_encoder import ActionEncoder, CombatActionEncoder
 from mira.world_model.schedule import build_inference_schedule
 
 logger = logging.getLogger(__name__)
@@ -120,6 +120,18 @@ class LatentWorldModel(nn.Module):
             key_field_names=config.actions.valid_keys,
             subset_drop_prob=config.action_subset_drop_prob,
         )
+        self.combat_action_encoder = None
+        if config.action_conditioning == "scope":
+            name_to_index = {k: i for i, k in enumerate(config.actions.valid_keys)}
+            missing = [k for k in config.actions.scope_keys if k not in name_to_index]
+            if missing:
+                raise ValueError(f"scope_keys not in valid_keys: {missing}")
+            scope_index = [name_to_index[k] for k in config.actions.scope_keys]
+            self.combat_action_encoder = CombatActionEncoder(
+                scope_index=scope_index,
+                dim=config.hidden_dim,
+                temporal_downsampling=self.action_temporal_downsampling,
+            )
         # Learned "beginning of sequence" latent used as the past of the first frame.
         # Only created with past-conditioning so older checkpoints still load.
         self.bos = None
@@ -136,10 +148,14 @@ class LatentWorldModel(nn.Module):
             z = self.encode_video(batch.slice_time(0, self.config.video.timesteps, fps=self.config.video.fps))
 
         off = self.action_temporal_downsampling - 1
-        a = self.action_encoder(batch.actions.slice_time(off, self.n_action_steps + off))
-        return self.diffusion_loss(z, a)
+        sliced = batch.actions.slice_time(off, self.n_action_steps + off)
+        a = self.action_encoder(sliced)
+        combat_tokens = (
+            self.combat_action_encoder(sliced.key_presses) if self.combat_action_encoder is not None else None
+        )
+        return self.diffusion_loss(z, a, combat_tokens)
 
-    def diffusion_loss(self, z: Tensor, a: Tensor) -> dict[str, Tensor]:
+    def diffusion_loss(self, z: Tensor, a: Tensor, combat_tokens: Tensor | None = None) -> dict[str, Tensor]:
         """Diagonal flow-matching loss given encoded latents ``z`` (b, t, h, w, c) and the action
         embedding ``a``. This is the whole training tail; MultiWrapperWorldModel reuses it with a
         tiled multi-player ``z`` and combined ``a`` so the loss logic cannot drift between the two
@@ -153,7 +169,7 @@ class LatentWorldModel(nn.Module):
 
         # Diagonal loss: standard flow matching on the full batch.
         z_t, v, tau = self.prepare_training_inputs(z)
-        pred_v = self.world_model(z_t, a, tau, clean_past=shifted_z)
+        pred_v = self.world_model(z_t, a, tau, clean_past=shifted_z, combat_tokens=combat_tokens)
 
         loss_diffusion = torch.nn.functional.mse_loss(pred_v.float(), v.float())
         outputs: dict[str, Tensor] = {
@@ -265,6 +281,7 @@ class LatentWorldModel(nn.Module):
         n_diffusion_steps=10,
         noise_level: float | None = 0.2,
         schedule_type: str = "linear_quadratic",
+        combat_tokens: Tensor | None = None,
     ):
         """Denoise the last latent frame, streaming the context through a kv-cache.
 
@@ -282,6 +299,8 @@ class LatentWorldModel(nn.Module):
             ``(z_t, streaming_kv_caches)``.
         """
         batch_size, n_latents = z_t.shape[:2]
+        ct_ctx = combat_tokens[:, :-1] if combat_tokens is not None else None
+        ct_last = combat_tokens[:, -1:] if combat_tokens is not None else None
         n_context_latents = n_latents - 1
         device = z_t.device
         timesteps = build_inference_schedule(n_diffusion_steps, device, schedule_type)
@@ -302,6 +321,7 @@ class LatentWorldModel(nn.Module):
                 context_tau,
                 return_kv=True,
                 clean_past=context_clean_past,
+                combat_tokens=ct_ctx
             )
 
         # The past frame is always a clean (un-noised) latent.
@@ -324,6 +344,7 @@ class LatentWorldModel(nn.Module):
                 kv_caches=streaming_kv_caches,
                 return_kv=return_kv,
                 clean_past=clean_past,
+                combat_tokens=ct_last,
             )
             if return_kv:
                 pred_v, last_kv_cache = pred_v
@@ -345,6 +366,7 @@ class LatentWorldModel(nn.Module):
                 kv_caches=streaming_kv_caches,
                 return_kv=True,
                 clean_past=clean_past,
+                combat_tokens=ct_last,
             )
 
         assert streaming_kv_caches is not None and last_kv_cache is not None
@@ -420,9 +442,12 @@ class LatentWorldModel(nn.Module):
             off = self.action_temporal_downsampling - 1
             action_start = start * self.action_temporal_downsampling + off
             action_end = (start + window_size - 1) * self.action_temporal_downsampling + off
-            current_a = self.action_encoder(
-                batch.actions.slice_time(action_start, action_end),
-            ).clone()  # clone because of torch.compile
+            sliced_actions = batch.actions.slice_time(action_start, action_end)
+            current_a = self.action_encoder(sliced_actions).clone()  # clone because of torch.compile
+            current_combat_tokens = (
+                self.combat_action_encoder(sliced_actions.key_presses).clone()
+                if self.combat_action_encoder is not None else None
+            )
             z_t[:, start : start + window_size], streaming_kv_caches = self.denoise_streaming(
                 z_t[:, start : start + window_size],
                 current_a,
@@ -430,6 +455,7 @@ class LatentWorldModel(nn.Module):
                 noise_level=config.noise_level,
                 streaming_kv_caches=streaming_kv_caches,
                 schedule_type=config.schedule_type,
+                combat_tokens=current_combat_tokens,
             )
 
         n_generated_latents = start + window_size
@@ -477,9 +503,10 @@ class LatentWorldModel(nn.Module):
         # live player cannot really have issued it. We reuse their currently held
         # control for the whole chunk.
         off = self.action_temporal_downsampling - 1
-        current_a = self.action_encoder(
-            actions_history.slice_time(-n_action_steps - off, -off if off else None).to(self.device)
-        )
+        sliced = actions_history.slice_time(-n_action_steps - off, -off if off else None).to(self.device)
+        current_a = self.action_encoder(sliced)
+        # probably wont use because not trained with PSD and also I have no GPU for realtime
+        current_combat_tokens = self.combat_action_encoder(sliced.key_presses) if self.combat_action_encoder is not None else None
 
         return self.denoise_streaming(
             z_t,
@@ -488,6 +515,7 @@ class LatentWorldModel(nn.Module):
             n_diffusion_steps=config.n_diffusion_steps,
             noise_level=config.noise_level,
             schedule_type=config.schedule_type,
+            combat_tokens=current_combat_tokens,
         )
 
     @torch.no_grad()

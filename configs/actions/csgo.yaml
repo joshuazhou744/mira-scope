@@ -1,0 +1,18 @@
+# CSGO keybinds — the 13-key release vocabulary.
+
+target_fps: ${dataset.target_fps} # action sample rate (1:1 with video frames)
+valid_keys:
+  - W            # forward
+  - A            # strafe left
+  - S            # go back
+  - D            # strafe right
+  - Space        # jump
+  - Ctrl     # crouch
+  - Shift  # walk
+  - "1" # weapon 1
+  - "2" # weapon 2
+  - "3" # weapon 3
+  - R # reload
+  - Fire # left click
+  - RClick # right click
+scope_keys: [Fire, R, "1", "2", "3"]
