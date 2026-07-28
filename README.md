@@ -2,7 +2,7 @@
 
 ## MIRA-SCOPE for FPS World Modelling
 
-https://github.com/user-attachments/assets/ff8cd636-3dcc-4b95-a9e7-9efa4a4f0028
+https://github.com/user-attachments/assets/f9c205c4-6466-4753-b6a2-f71e5c12d4f7
 
 MIRA-SCOPE is a proof of concept CS:GO world model that adapts MIRA's autoencoder and diffusion architecture to an FPS world, integrating action decoupling inspired by SCOPE. The world model is built on a codec that uses a frozen **DINOv3** encoder for feature extraction.
 
@@ -113,17 +113,16 @@ cross-attention. Any difference in generation can be attributed to the SCOPE mec
 <tr>
 <td width="50%">
 
-https://github.com/user-attachments/assets/57f3f243-ca12-459a-8779-3bb6a7ea4bbb
+https://github.com/user-attachments/assets/8da2f192-4070-4346-bada-5d4bd2eaf225
 
 </td>
 <td width="50%">
 
-https://github.com/user-attachments/assets/e27ccb4b-190e-486b-9086-8788286a5057
+https://github.com/user-attachments/assets/0842c520-8a09-4eed-9919-2f842a361074
 
 </td>
 </tr>
 </table>
-
 
 <table>
 <tr>
@@ -132,7 +131,7 @@ https://github.com/user-attachments/assets/e27ccb4b-190e-486b-9086-8788286a5057
 <tr>
 <td>
 
-https://github.com/user-attachments/assets/b4bb3ee4-bb5b-4e01-b153-8f348ad5e822
+https://github.com/user-attachments/assets/f5a68707-1229-4698-a437-e4a7c4d6d5ed
 
 </td>
 </tr>
@@ -143,7 +142,7 @@ https://github.com/user-attachments/assets/b4bb3ee4-bb5b-4e01-b153-8f348ad5e822
 <tr>
 <td>
 
-https://github.com/user-attachments/assets/e35cf88a-8f22-4f5c-bff9-5dc05cf323ef
+https://github.com/user-attachments/assets/188bda26-ec99-47bf-9438-eaf693b62ae3
 
 </td>
 </tr>
