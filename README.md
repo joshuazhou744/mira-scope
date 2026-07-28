@@ -16,16 +16,16 @@ Tong et al., *SCOPE: Simulating Cross-game Operations in Playable Environments f
 
 ### SCOPE Action Conditioning
 
-![transformer-diagram](https://github.com/joshuazhou744/mira-scope/blob/2779ea5221270d751fdb32a095c7a9ba26bf80da/public/transformer-diagram.png)
+<img width="1140" height="497" alt="transformer-diagram" src="https://github.com/user-attachments/assets/0b1e3c17-fdac-449a-b50e-f3fe3f47a054" />
 
 SCOPE adds a step before AdaLN using `ActionModule`.
 AdaLN is always present for global action conditioning. SCOPE is an additive route for specifically chosen actions.
 
-![adaln-diagram](https://github.com/joshuazhou744/mira-scope/blob/2779ea5221270d751fdb32a095c7a9ba26bf80da/public/adaln-diagram.png)
+<img width="1073" height="689" alt="adaln-diagram" src="https://github.com/user-attachments/assets/abc1b880-7d93-47b5-90cd-d10f11d4c2c2" />
 
 AdaLN is a global modulation of all positions of the latent grid (one gamma and beta, per channel scale and bias).
 
-![scope-diagram](https://github.com/joshuazhou744/mira-scope/blob/64171858e238ee46018062e0936a61561ec8d346/public/scope-diagram.png)
+<img width="1617" height="649" alt="scope-diagram" src="https://github.com/user-attachments/assets/7862c90a-ea01-4957-b1f2-27543e3f55a2" />
 
 The `ActionModule` block takes scoped actions (fire, reload, weapon change) from a separate encoder 
 and attends latent grid tokens to them (latent positions are queries, scoped actions are keys and values).
