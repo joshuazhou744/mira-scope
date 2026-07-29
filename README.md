@@ -34,11 +34,14 @@ The output projection of `ActionModule` is zero-initialized so it's gradually le
 
 ### Dataset
 
-MIRA-SCOPE trains on single-player, deathmatch-style CS:GO data. We use the CS:GO Deathmatch dataset from Pearce & Zhu: ~5,500 matches scraped from online CS:GO deathmatches on the Dust2 map.
+MIRA-SCOPE trains on single-player, deathmatch-style CS:GO data. We use the CS:GO Deathmatch dataset from Pearce & Zhu: ~5,500 matches scraped 
+from online CS:GO deathmatches on the Dust2 map.
 Each match is ~1000 frames at 16 FPS, ~62.5 seconds of data. Each frame is matched with recorded keyboard/mouse action inputs.
 The dataset provides raw keyboard inputs and mouse movements one-hot encoded over 23 x-axis and 15 y-axis bins.
-The [convert_csgo_data.py](scripts/convert_csgo_data.py) script decodes the bins into scalar floats, then aggregates all actions over each pair of frames to match the time-downsampled latents.
-This is the same dataset used to train the DIAMOND CS:GO diffusion world model.
+The [convert_csgo_data.py](scripts/convert_csgo_data.py) script decodes the bins into scalar floats, then aggregates all actions over each pair 
+of frames to match the time-downsampled latents. This is the same dataset used to train the DIAMOND CS:GO diffusion world model.
+
+The dataset is fine to use for world model training under the [Valve Video Policy](https://store.steampowered.com/video_policy).
 
 Pearce & Zhu, *Counter-Strike Deathmatch with Large-Scale Behavioural Cloning*, IEEE CoG 2022 (Best Paper). <br>
 [Paper](https://arxiv.org/abs/2104.04258) · [Code](https://github.com/TeaPearce/Counter-Strike_Behavioural_Cloning) · [Data](https://huggingface.co/datasets/TeaPearce/CounterStrike_Deathmatch)
