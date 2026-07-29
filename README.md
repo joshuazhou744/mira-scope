@@ -103,7 +103,7 @@ cross-attention. Any difference in generation can be attributed to the SCOPE mec
 2. **Train the codec** using steps (clone/install, environment, dataset build from the TeaPearce HDF5 files, and the `torchrun` launch) from: [train_codec](train_codec.md).
 3. **Train the world model** on a finished codec checkpoint, for either the AdaLN baseline or the SCOPE arm: [train_wm.md](train_wm.md).
 
-### Visualizations
+### Validations
 
 <table>
 <tr>
