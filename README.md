@@ -81,6 +81,7 @@ cross-attention. Any difference in generation can be attributed to the SCOPE mec
 | --- | --- | --- |
 | Diffusion transformer hyperparams | 16 layers, 1024 hidden dim, 16 heads | 16 layers, 1024 hidden dim, 16 heads |
 | Training | 16 batch size, 2x5090 | 16 batch size, 2x5090 |
+| Context Window (seconds) | 2 | 2 |
 | Steps | 100k | 100k |
 | Final Validation LPIPS | 0.269 | 0.267 |
 | Final Validation Total Loss | 0.283 | 0.276 |
@@ -92,6 +93,7 @@ cross-attention. Any difference in generation can be attributed to the SCOPE mec
 | --- | --- | --- |
 | Diffusion transformer hyperparams | --- | 16 layers, 1024 hidden dim, 16 heads |
 | Training | --- | 16 batch size, 2x5090 |
+| Context Window (seconds) | --- | 2 |
 | Steps | --- | 100k |
 | Final Validation LPIPS | --- | 0.278 |
 | Final Validation Total Loss | --- | 0.365 |
@@ -189,10 +191,9 @@ uv run python scripts/demo/client.py \
 
 | Generation Observation | Cause (Guessed) | Proposed Fix |
 | --- | --- | --- |
-| Weapon actions unstable, randomly change | Training data has lots of instances where player dies mid-fight (while shooting), world model may learn shoot = death and trigger death animation (or some messed up version). Weapons are tracked by change, not a continuous state | May be an inherent flaw in training SCOPE action conditioning on data without player states (health, enemies). Forward-fill weapon changes to allow the model to learn from continuous state rather than re-generating from previous frames |
+| Weapon actions unstable, randomly change | Training data has lots of instances where player dies mid-fight (while shooting), world model may learn shoot = death and trigger death animation (or some messed up version). Weapons are tracked by change, not a continuous state | May be an inherent flaw in purely conditioning on action and not player states (health, enemies). Forward-filling weapon change actions allows the model to learn from continuous state rather than re-generating from previous frames |
 | Player teleports to a new location when panning camera too fast | Respawn scene cuts in the deathmatch data which the model learns to reproduce, model generation also may get confused during sharp camera pans past a small training window | Segment training clips to be continuous gameplay, increase training context window length |
-| Random deaths and poor enemy permanence | Enemies have no conditioning signal so interactions are learned visually | Hard to fully fix, MIRA's multiplayer Rocket League handles opponents better because it conditions on all 4 players' actions in a contained map (no game-state conditioning needed) |
-| Long rollout degrades | Autoregressive drift accumulating, expected in MIRA | Longer training context window and context-noise augmentation for drift recovery |
+| Poor enemy permanence and inert interactions | Enemies have no generation from their perspective nor conditioning signal so interactions are learned visually | Hard to fully fix, MIRA's multiplayer Rocket League handles opponents better because it conditions on all 4 players' actions in a contained map (no game-state conditioning needed) |
 
 ### License
 
