@@ -84,6 +84,7 @@ class _VideoActionIterable(IterableDataset):
         shuffle_buffer_size: int,
         seed: int,
         action_fps: int | None = None,
+        forward_fill_weapon: bool = False,
     ):
         if n_players < 1:
             raise ValueError(f"n_players must be >= 1, got {n_players}")
@@ -100,6 +101,7 @@ class _VideoActionIterable(IterableDataset):
         self.infinite = infinite
         self.shuffle_buffer_size = shuffle_buffer_size
         self.seed = seed
+        self.forward_fill_weapon = forward_fill_weapon
 
     def _my_shards(self, dataset: RocketScienceDataset) -> list[str]:
         """The shards this (rank, worker) is responsible for, split rank-first then worker-second."""
@@ -181,7 +183,7 @@ class _VideoActionIterable(IterableDataset):
         info = get_worker_info()
         worker_id = info.id if info is not None else 0
 
-        dataset = RocketScienceDataset.from_local(self.index_path, vocab=self.vocab)
+        dataset = RocketScienceDataset.from_local(self.index_path, vocab=self.vocab, forward_fill_weapon=self.forward_fill_weapon)
         # Group entries by shard once so a single shard can be streamed at a time (for shard-order
         # shuffling); _shard_view scopes iter_clips to one shard's entries.
         self._entries_by_shard: dict[str, list] = {}
@@ -248,6 +250,7 @@ def create_loader(
     action_config: ActionConfig | None = None,
     prefetch_factor: int = 2,
     pin_memory: bool | None = None,
+    forward_fill_weapon: bool = False,
 ) -> DataLoader:
     """Build a ``DataLoader`` yielding ``(VideoActionBatch, list[ClipMeta])`` from a dataset index.
 
@@ -300,7 +303,7 @@ def create_loader(
     # skipped as "too long for its chunks" and, with `infinite=True`, the stream loops over an empty
     # epoch forever (a silent hang). Some-but-not-all fitting is fine -- the short matches are skipped
     # while streaming. This reads only index metadata (no video), so it is cheap to check once here.
-    probe = RocketScienceDataset.from_local(index_path, vocab=KeyVocab(tuple(action_config.valid_keys)))
+    probe = RocketScienceDataset.from_local(index_path, vocab=KeyVocab(tuple(action_config.valid_keys)), forward_fill_weapon=forward_fill_weapon)
     longest = probe.max_clip_frames(target_fps)
     if clip_len > longest:
         raise ValueError(
@@ -322,6 +325,7 @@ def create_loader(
         shuffle_buffer_size=shuffle_buffer_size,
         seed=seed,
         action_fps=action_fps,
+        forward_fill_weapon=forward_fill_weapon
     )
 
     return DataLoader(

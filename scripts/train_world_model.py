@@ -388,6 +388,7 @@ def _create_dataloaders(cfg: DictConfig, wm_metrics_config: WorldModelMetricsCon
         batch_size=cfg.run.batch_size,
         seed=cfg.run.seed,
         exclude_replays=cfg.dataset.exclude_replays,
+        forward_fill_weapon=cfg.model.architecture.config.forward_fill_weapon,
         **common,
     )
     val_loader = create_loader(
@@ -396,6 +397,7 @@ def _create_dataloaders(cfg: DictConfig, wm_metrics_config: WorldModelMetricsCon
         batch_size=cfg.validation.batch_size or cfg.run.batch_size,
         seed=37,
         exclude_replays=True,
+        forward_fill_weapon=cfg.model.architecture.config.forward_fill_weapon,
         **common,
     )
     metrics_loader = create_loader(

@@ -20,6 +20,7 @@ from tqdm import tqdm
 
 from mira.codec.codec_model import VideoCodec
 from mira.data.batch import VideoActionBatch
+from mira.data.actions import forward_fill_weapon
 from mira.ml.config_loading import drop_removed_fields, strip_hydra_targets
 from mira.training.checkpoints import resolve_checkpoint
 from mira.world_model.actions_config import ActionTensors
@@ -423,6 +424,8 @@ class LatentWorldModel(nn.Module):
         self.codec.preprocess_batch(batch)
 
         batch = batch.to(self.device)
+        if self.config.forward_fill_weapon:
+            batch.actions.key_presses = forward_fill_weapon(batch.actions.key_presses)
         z = self.encode_video(batch).clone()  # clone because of torch.compile
 
         z_t = torch.randn_like(z)
@@ -502,6 +505,8 @@ class LatentWorldModel(nn.Module):
         # within-chunk action reacting to a frame we have not displayed yet, so a
         # live player cannot really have issued it. We reuse their currently held
         # control for the whole chunk.
+        if self.config.forward_fill_weapon:
+            actions_history.key_presses = forward_fill_weapon(actions_history.key_presses)
         off = self.action_temporal_downsampling - 1
         sliced = actions_history.slice_time(-n_action_steps - off, -off if off else None).to(self.device)
         current_a = self.action_encoder(sliced)

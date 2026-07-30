@@ -76,6 +76,8 @@ class LatentWorldModelConfig(BaseModel):
     # scope: SCOPE arm, localized combat actions are ALSO routed through a per-block cross-attention
     # ActionModule (in AdaSTBlock). Global actions stay routed through AdaLN.
     action_conditioning: Literal["adaln", "scope"] = "adaln"
+    # Forward fill weapon switch states
+    forward_fill_weapon: bool = False
 
     n_context_frames: int = 39  # only used during inference
 

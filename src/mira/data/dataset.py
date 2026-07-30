@@ -21,7 +21,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from .actions import KeyVocab, tensorize_actions, tensorize_mouse
+from .actions import KeyVocab, tensorize_actions, tensorize_mouse, forward_fill_weapon
 from .clips import compute_clip_frame_indices, compute_stride
 from .decode import decode_frames
 from .events import Event, events_in_frame_window, overlaps_any, parse_anchors, replay_spans
@@ -149,10 +149,11 @@ class _MatchPlan:
 
 
 class RocketScienceDataset:
-    def __init__(self, index_path: str | Path, vocab: KeyVocab | None = None):
+    def __init__(self, index_path: str | Path, vocab: KeyVocab | None = None, forward_fill_weapon: bool = False):
         self.index_path = Path(index_path)
         self.root = self.index_path.parent
         self.vocab = vocab or KeyVocab.default_rl()
+        self.forward_fill_weapon = forward_fill_weapon
 
         self.index: Index = Index.load(self.index_path)
         self.matches: dict[str, MatchEntry] = {}
@@ -386,9 +387,16 @@ class RocketScienceDataset:
             # frame indices (mp.src_fps), not a per-perspective re-derivation. `keep_last_partial`
             # OR-s a short final window (a clip running to the chunk's end) into a real step rather
             # than dropping it, so the trailing step carries the keys actually held over its frames.
-            a = tensorize_actions(
-                chunk[i]["lines"][l0:l_end], self.vocab, mp.src_fps, act_fps, keep_last_partial=True
+            # a = tensorize_actions(
+            #     chunk[i]["lines"][l0:l_end], self.vocab, mp.src_fps, act_fps, keep_last_partial=True
+            # )
+            # Fill over the FULL match, then slice the clip window
+            a_full = tensorize_actions(
+                chunk[i]["lines"], self.vocab, mp.src_fps, act_fps, keep_last_partial=True
             )
+            if self.forward_fill_weapon:
+                a_full = forward_fill_weapon(a_full.unsqueeze(0))[0] # add/remove batch dim
+            a = a_full[l0:l_end]
             # A clip ending at the chunk boundary can have a short final action window (the chunk
             # ends mid-window), so with action_fps > target_fps (multiple action steps per frame) it
             # yields fewer than `n_action_steps`. Hold the last step to pad back to the nominal count

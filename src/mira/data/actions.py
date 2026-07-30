@@ -12,6 +12,7 @@ consumers.
 from __future__ import annotations
 
 import json
+import torch
 import warnings
 from collections.abc import Iterable
 from dataclasses import dataclass, field
@@ -62,6 +63,21 @@ class KeyVocab:
 
     def __len__(self) -> int:
         return len(self.keys)
+
+def forward_fill_weapon(key_presses, slot_indices=(7, 8, 9)):
+    """1/2/3 pulses -> persistent weapon-equipped 'states', equipped weapon is one-hot
+    Zeros before first press (unknown state)"""
+    kp = key_presses.clone()
+    slots = kp[:, :, list(slot_indices)] # (B, T, 3)
+    pressed = slots.max(-1).values > 0 # (B, T) any slot pressed
+    val = torch.where(pressed, slots.argmax(-1) + 1, torch.zeros_like(pressed, dtype=torch.long))
+    T = val.shape[1]
+    i = torch.arange(T, device=val.device)
+    last = torch.where(val > 0, i, torch.zeros_like(i)).cummax(1).values
+    equipped = torch.gather(val, 1, last)
+    for j, s in enumerate(slot_indices):
+        kp[:, :, s] = (equipped == j + 1).to(kp.dtype)
+    return kp
 
 
 def tensorize_actions(
