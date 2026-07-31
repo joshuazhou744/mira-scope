@@ -1,0 +1,7 @@
+MIRA-SCOPE
+
+This product is a modified derivative of MIRA
+(https://arxiv.org/abs/2607.05352), licensed under the Apache License, Version 2.0.
+
+Source files in this repository have been modified from the original MIRA source.
+The original project's README is preserved as README_ORIGINAL.md.

@@ -5,3 +5,4 @@ n_kv_head: 4
 n_layers: 16
 time_attention_every: 4
 action_conditioning: adaln
+forward_fill_weapon: false
