@@ -60,6 +60,9 @@ identical in every way (same codec, same data, same hyperparameters) except how 
 routes all actions through MIRA's AdaLN path, and a SCOPE arm that additionally routes localized combat actions through per-block
 cross-attention. Any difference in generation can be attributed to the SCOPE mechanism alone.
 
+For the one of SCOPE action conditioned checkpoints I implemented forward filling for weapon changes to improve weapon consistency in generated
+frames. This means that weapon change actions behave like a continuous state that defines the weapon type for a given frame.
+
 ### Training Specifications
 
 #### Codec
@@ -76,16 +79,17 @@ cross-attention. Any difference in generation can be attributed to the SCOPE mec
 | Total params | 497M | 900M |
 
 
-#### World Model 800M Checkpoint (trained on Codec v0)
-| | AdaLN | SCOPE |
-| --- | --- | --- |
-| Diffusion transformer hyperparams | 16 layers, 1024 hidden dim, 16 heads | 16 layers, 1024 hidden dim, 16 heads |
-| Training | 16 batch size, 2x5090 | 16 batch size, 2x5090 |
-| Context Window (seconds) | 2 | 2 |
-| Steps | 100k | 100k |
-| Final Validation LPIPS | 0.269 | 0.267 |
-| Final Validation Total Loss | 0.283 | 0.276 |
-| Total params | 796M | 862M |
+#### World Model 800M (trained on Codec v0)
+| Action conditioning | AdaLN | AdaLN | SCOPE | SCOPE
+| --- | --- | --- | --- | --- |
+| Diffusion transformer hyperparams | 16 layers, 1024 hidden dim, 16 heads | 16 layers, 1024 hidden dim, 16 heads | 16 layers, 1024 hidden dim, 16 heads | 16 layers, 1024 hidden dim, 16 heads |
+| Training | 16 batch size, 2x5090 | 16 batch size, 2x5090 | 16 batch size, 2x5090 | 16 batch size, 2x5090 |
+| Context Window (seconds) | 2 | 3 | 2 | 3 |
+| Steps | 100k | 100k | 200k | 200k |
+| Forward fill weapon changes | No | No | No | Yes |
+| Final Validation LPIPS | 0.269 | 0.282 | 0.267 | 0.278 |
+| Final Validation Total Loss | 0.283 | 0.284 | 0.276 | 0.273 |
+| Total params | 796M | 796M | 862M | 862M |
 
 
 #### World Model 1B (trained on Codec v1)
@@ -189,11 +193,11 @@ uv run python scripts/demo/client.py \
 
 ### Limitations
 
-| Generation Observation | Cause (Guessed) | Proposed Fix |
+| Observation | Cause | Fix |
 | --- | --- | --- |
-| Weapon actions unstable, randomly change | Training data has lots of instances where player dies mid-fight (while shooting), world model may learn shoot = death and trigger death animation (or some messed up version). Weapons are tracked by change, not a continuous state | May be an inherent flaw in purely conditioning on action and not player states (health, enemies). Forward-filling weapon change actions allows the model to learn from continuous state rather than re-generating from previous frames |
-| Player teleports to a new location when panning camera too fast | Respawn scene cuts in the deathmatch data which the model learns to reproduce, model generation also may get confused during sharp camera pans past a small training window | Segment training clips to be continuous gameplay, increase training context window length |
-| Poor enemy permanence and inert interactions | Enemies have no generation from their perspective nor conditioning signal so interactions are learned visually | Hard to fully fix, MIRA's multiplayer Rocket League handles opponents better because it conditions on all 4 players' actions in a contained map (no game-state conditioning needed) |
+| Weapon actions unstable, changing weapons back and forth isn't preserved | Weapons are tracked by change, not a continuous state | Forward-filling weapon change actions allows the model to learn from continuous state rather than re-generating from previous frames |
+| Player teleports locations after staring at wall | Featureless views beyond context window loses positional cues and the infers an arbitrary location simulating teleportation | Increase training context window length |
+| Inconsistent enemy interactions, player deaths are random | Enemies have no generation from their perspective nor conditioning signal so interactions are learned visually | Requires game state conditioning or joint multi-generation, MIRA's multiplayer Rocket League handles opponent interactions better because it conditions on all 4 players' actions in a contained map |
 
 ### License
 
