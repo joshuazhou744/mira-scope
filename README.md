@@ -2,7 +2,7 @@
 
 ## MIRA-SCOPE for FPS World Modelling
 
-https://github.com/user-attachments/assets/f9c205c4-6466-4753-b6a2-f71e5c12d4f7
+https://github.com/user-attachments/assets/951460cb-6257-4d45-a5c1-e7d9770abf47
 
 MIRA-SCOPE is a proof of concept CS:GO world model that adapts MIRA's autoencoder and diffusion architecture to an FPS world, integrating action decoupling inspired by SCOPE. The world model is built on a codec that uses a frozen **DINOv3** encoder for feature extraction.
 
