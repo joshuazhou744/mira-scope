@@ -28,14 +28,14 @@ KEYMAP = {
 FPS = 16
 TD = 2 # action samples per server message (one latent frame)
 FRAME_W, FRAME_H = 288, 160 # native model resolution
-SCALE = 3 # display upscale
+SCALE = 1 # display upscale
 SENS_X, SENS_Y = 6.0, 3.0 # px -> mouse-dot multipliers, per axis (see bin ranges below)
 
 MOUSE_X_BINS = [-1000.0, -500.0, -300.0, -200.0, -100.0, -60.0, -30.0, -20.0, -10.0, -4.0, -2.0, 0.0, 2.0, 4.0, 10.0, 20.0, 30.0, 60.0, 100.0, 200.0, 300.0, 500.0, 1000.0]
 MOUSE_Y_BINS = [-200.0, -100.0, -50.0, -20.0, -10.0, -4.0, -2.0, 0.0, 2.0, 4.0, 10.0, 20.0, 50.0, 100.0, 200.0]
 
 HUD_KEYS = ["W", "A", "S", "D", "1", "2", "3", "R", "Fire"]
-HUD_H = 56
+HUD_H = 64
 _FONT = None
 
 def draw_hud(screen, keys, y0, h):
@@ -116,13 +116,13 @@ def main() -> None:
                 if frame_queue:
                     jpeg = frame_queue.pop(0)
                     img = Image.open(io.BytesIO(jpeg)).convert("RGB")
-                    if args.record is not None:
-                        recorded.append(np.asarray(img))
                     surface = pygame.image.frombytes(img.tobytes(), img.size, "RGB")
                     frame_surf = pygame.transform.scale(surface, (FRAME_W * SCALE, FRAME_H * SCALE))
                     screen.blit(frame_surf, (0, 0))
                     draw_hud(screen, keys, FRAME_H * SCALE, HUD_H)
                     pygame.display.flip()
+                    if args.record is not None:
+                        recorded.append(pygame.surfarray.array3d(screen).swapaxes(0, 1))
 
                 clock.tick(FPS)
     finally:
