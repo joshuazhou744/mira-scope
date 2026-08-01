@@ -28,11 +28,33 @@ KEYMAP = {
 FPS = 16
 TD = 2 # action samples per server message (one latent frame)
 FRAME_W, FRAME_H = 288, 160 # native model resolution
-SCALE = 1 # display upscale
+SCALE = 3 # display upscale
 SENS_X, SENS_Y = 6.0, 3.0 # px -> mouse-dot multipliers, per axis (see bin ranges below)
 
 MOUSE_X_BINS = [-1000.0, -500.0, -300.0, -200.0, -100.0, -60.0, -30.0, -20.0, -10.0, -4.0, -2.0, 0.0, 2.0, 4.0, 10.0, 20.0, 30.0, 60.0, 100.0, 200.0, 300.0, 500.0, 1000.0]
 MOUSE_Y_BINS = [-200.0, -100.0, -50.0, -20.0, -10.0, -4.0, -2.0, 0.0, 2.0, 4.0, 10.0, 20.0, 50.0, 100.0, 200.0]
+
+HUD_KEYS = ["W", "A", "S", "D", "1", "2", "3", "R", "Fire"]
+HUD_H = 56
+_FONT = None
+
+def draw_hud(screen, keys, y0, h):
+    global _FONT
+    if _FONT is None:
+        _FONT = pygame.font.SysFont("consolas", 16, bold=True)
+    n = len(HUD_KEYS)
+    w = screen.get_width()
+    box = min(h - 12, w // n - 4)
+    pad = (w - n * box) // (n + 1)
+    screen.fill((20, 20, 24), (0, y0, w, h))
+    x = pad
+    for name in HUD_KEYS:
+        on = keys[CSGO_KEYS.index(name)]
+        rect = pygame.Rect(x, y0 + (h - box) // 2, box, box)
+        pygame.draw.rect(screen, (60, 220, 90) if on else (48, 48, 54), rect, border_radius=6)
+        label = _FONT.render(name, True, (10, 10, 10) if on else (140, 140, 140))
+        screen.blit(label, label.get_rect(center=rect.center))
+        x += box + pad
 
 def snap(value: float, bins: list[float]) -> float:
     """Nearest bin center, so every delta we send is a value the model trained on."""
@@ -65,7 +87,7 @@ def main() -> None:
     args = ap.parse_args()
 
     pygame.init()
-    screen = pygame.display.set_mode((FRAME_W * SCALE, FRAME_H * SCALE))
+    screen = pygame.display.set_mode((FRAME_W * SCALE, FRAME_H * SCALE + HUD_H))
     pygame.display.set_caption("MIRA-SCOPE live demo")
     pygame.event.set_grab(True)
     pygame.mouse.set_visible(False)
@@ -97,7 +119,9 @@ def main() -> None:
                     if args.record is not None:
                         recorded.append(np.asarray(img))
                     surface = pygame.image.frombytes(img.tobytes(), img.size, "RGB")
-                    screen.blit(pygame.transform.scale(surface, screen.get_size()), (0, 0))
+                    frame_surf = pygame.transform.scale(surface, (FRAME_W * SCALE, FRAME_H * SCALE))
+                    screen.blit(frame_surf, (0, 0))
+                    draw_hud(screen, keys, FRAME_H * SCALE, HUD_H)
                     pygame.display.flip()
 
                 clock.tick(FPS)
