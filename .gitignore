@@ -8,8 +8,4 @@ scripts/tests/
 scope_clips/
 scope_dinol_clips/
 adaln_clips/
-
-public/mira-scope-demo.mp4
-public/mira-scope-demo-short.mp4
-public/mira-scope-demo-with-raw.mp4
-public/mira-scope.mp4
+demos/
