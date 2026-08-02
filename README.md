@@ -202,6 +202,8 @@ uv run python scripts/demo/client.py \
 | Player teleports locations after staring at wall | Featureless views beyond context window loses positional cues and the infers an arbitrary location simulating teleportation | Increase training context window length |
 | Inconsistent enemy interactions, player deaths are random | Enemies have no generation from their perspective nor conditioning signal so interactions are learned visually | Requires game state conditioning or joint multi-generation, MIRA's multiplayer Rocket League handles opponent interactions better because it conditions on all 4 players' actions in a contained map |
 
+Some limitations are shared with [DIAMOND](https://youtu.be/fOF0By6fOWw?si=3oMBtEmQe0VSG1fn&t=1738).
+
 ### License
 
 Apache License 2.0, see [LICENSE](LICENSE). 
