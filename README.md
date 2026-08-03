@@ -69,9 +69,8 @@ frames. This means that weapon change actions behave like a continuous state tha
 ### Training Specifications
 
 #### Codec
-| | Codec v0 | Codec v1 |
-| --- | --- | --- |
 | Feature extractor (encoder) | DINOv3-B/16 | DINOv3-L/16
+| --- | --- | --- |
 | Aggregation layers | [2, 5, 8, 11] | [11, 13, 15, 17, 19, 21, 23]
 | ViT decoder | 1024 width, 24 depth | 1152 width, 28 depth |
 | Latent grid | 5×9×32, 2× temporal | 5×9×32, 2× temporal |
@@ -96,7 +95,7 @@ frames. This means that weapon change actions behave like a continuous state tha
 
 
 #### World Model 1B (trained on Codec v1)
-| | AdaLN | SCOPE |
+| Action conditioning | AdaLN | SCOPE |
 | --- | --- | --- |
 | Diffusion transformer hyperparams | --- | 16 layers, 1024 hidden dim, 16 heads |
 | Training | --- | 16 batch size, 2x5090 |
