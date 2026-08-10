@@ -2,17 +2,22 @@
 
 ## MIRA-SCOPE for FPS World Modelling
 
+MIRA is a real-time, latent diffusion world model that uses flow matching to generate gameplay frame-by-frame from player actions and gameplay footage.
+The 5B parameter world model was trained on full 2v2 matches with perspectives and actions from all 4 players.
+The model is built on a codec that uses a frozen **DINOv3** encoder for feature extraction.
+Read more and play it live at [mira-wm.com](https://mira-wm.com/).
+
+MIRA-SCOPE is a world model that adapts MIRA's autoencoder and diffusion architecture to an FPS world.
+We integrate action decoupling inspired by SCOPE and train on CS:GO gameplay.
+
+Action decoupling in SCOPE separates local effects in generation, like weapon 
+recoil and muzzle flash, from global world generation, like the stable background.
+In MIRA-SCOPE, all actions stay on MIRA's Adaptive LayerNorm (AdaLN) action conditioning path while scoped actions are routed
+through per-block cross-attention modules allowing the model to learn localized effects in the generated latent.
+
 https://github.com/user-attachments/assets/951460cb-6257-4d45-a5c1-e7d9770abf47
 
 [Demo](https://www.youtube.com/watch?v=P0m3G-bCoRA) with more samples and raw gameplay.
-
-MIRA-SCOPE is a proof of concept CS:GO world model that adapts MIRA's autoencoder and diffusion architecture to an FPS world, integrating action decoupling inspired by SCOPE. The world model is built on a codec that uses a frozen **DINOv3** encoder for feature extraction.
-
-The idea borrowed from SCOPE is separating in-scope effects local to specific areas in generation like weapon 
-recoil, muzzle flash, from out-of-scope world generation, stable background scene that updates globally with actions.
-In MIRA-SCOPE, all actions stay on MIRA's Adaptive LayerNorm (AdaLN) action conditioning path while certain actions are routed
-through per-block cross-attention modules allowing the model to learn localized effects in the generated latent.
-
 
 Tong et al., *SCOPE: Simulating Cross-game Operations in Playable Environments for FPS World Models*, 2026. <br>
 [Paper](https://arxiv.org/abs/2605.23345) · [Code](https://github.com/z2tong/SCOPE)
