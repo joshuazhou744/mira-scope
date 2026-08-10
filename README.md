@@ -120,7 +120,13 @@ frames. This means that weapon change actions behave like a continuous state tha
 | Forward fill weapon changes | No | No | No | Yes |
 | Final Validation LPIPS | 0.269 | 0.282 | 0.267 | 0.278 |
 | Final Validation Total Loss | 0.283 | 0.284 | 0.276 | 0.273 |
+| Final FDD vs. Recon at 8 frames | 6.70 | -- | 6.04 | -- |
+| Final Latent Drift | 0.2403 | -- | 0.2305 | -- |
 | Total params | 796M | 796M | 862M | 862M |
+
+> Columns 2 and 4 are the ablated SCOPE and AdaLN checkpoints. Focus on these columns for metric comparison and analysis. \
+> FDD vs. Recon measures how close DINO features of the world model's generated frame are to the codec's reconstructed frame. \
+> A value of zero means the DINO feature distributions match exactly with the codec reconstruction, this can be thought of as the generation quality ceiling.
 
 
 #### World Model 1B (trained on Codec v1)
@@ -134,7 +140,7 @@ frames. This means that weapon change actions behave like a continuous state tha
 | Final Validation Total Loss | --- | 0.365 |
 | Total params | --- | 1.27B |
 
-> not necessarily worse, but not better than the 800M checkpoints
+> not necessarily worse, but not better than the 800M checkpoints so I didn't bother training an AdaLN arm
 
 ### Reproducing the Training (on RunPod)
 
