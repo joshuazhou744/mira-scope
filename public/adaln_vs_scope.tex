@@ -1,0 +1,51 @@
+\documentclass[border=10pt]{standalone}
+\usepackage{amsmath,amssymb}
+\usepackage{algpseudocode} 
+
+\newcommand{\LN}{\mathrm{LN}}
+\newcommand{\spl}{\mathrm{split}}
+
+\begin{document}
+\begin{tabular}{@{}c@{\hspace{2.5em}}c@{}}
+
+% ---------------- Algorithm 1: AdaLN ----------------
+\begin{minipage}[t]{12.7cm}
+\centering\textbf{AdaLN}\\[3pt]
+\rule{\linewidth}{1pt}\\[-2pt]
+\raggedright
+\begin{algorithmic}[1]
+\Require $x,\;\; c = a + \phi(\tau)$ \Comment{context latents, conditioning signal}
+\State \textbf{for each } $S \in \{s,t,m\}$: \; $\gamma_S,\beta_S \gets \spl(W_S\, c)$ \Comment{scale and shift per sublayer}
+\State $x \gets x + \mathrm{SpaceAttn}\big((1{+}\gamma_s)\odot \LN(x) + \beta_s\big)$
+\State $x \gets x + \mathrm{TimeAttn}\big((1{+}\gamma_t)\odot \LN(x) + \beta_t\big)$
+\State $x \gets x + \mathrm{MLP}\big((1{+}\gamma_m)\odot\LN(x)+\beta_m\big)$
+\State \textbf{return } $x$
+\end{algorithmic}
+\rule{\linewidth}{1pt}
+\end{minipage}
+
+&
+
+% ---------------- Algorithm 2: SCOPE ----------------
+\begin{minipage}[t]{12.7cm}
+\centering\textbf{SCOPE}\\[3pt]
+\rule{\linewidth}{1pt}\\[-2pt]
+\raggedright
+\begin{algorithmic}[1]
+\Require $x,\;\; c = a + \phi(\tau),\;\; m \in \mathbb{R}^{M\times C}$ \Comment{context, conditioning, scoped actions}
+\State \textbf{for each } $S \in \{s,t,m\}$: \; $\gamma_S,\beta_S \gets \spl(W_S\, c)$
+\State $x \gets x + \mathrm{SpaceAttn}\big((1{+}\gamma_s)\odot\LN(x)+\beta_s\big)$
+\State $x \gets x + \mathrm{TimeAttn}\big((1{+}\gamma_t)\odot\LN(x)+\beta_t\big)$
+\Statex \textit{// SCOPE ActionModule (zero-init)}
+\State $q \gets W_q\,\LN(x)$ \Comment{queries: latent positions}
+\State $k,v \gets \spl(W_{kv}\, m)$ \Comment{keys/values: combat tokens}
+\State $\Delta \gets W_o\,\mathrm{softmax}\!\big(q k^{\top}/\sqrt{d}\big)\,v$ \Comment{$W_o\!=\!0$ at init}
+\State $x \gets x + \Delta$ \Comment{localized, per-position}
+\State $x \gets x + \mathrm{MLP}\big((1{+}\gamma_m)\odot\LN(x)+\beta_m\big)$
+\State \textbf{return } $x$
+\end{algorithmic}
+\rule{\linewidth}{1pt}
+\end{minipage}
+
+\end{tabular}
+\end{document}

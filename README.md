@@ -7,37 +7,62 @@ The 5B parameter world model was trained on full 2v2 matches with perspectives a
 The model is built on a codec that uses a frozen **DINOv3** encoder for feature extraction.
 Read more and play it live at [mira-wm.com](https://mira-wm.com/).
 
-MIRA-SCOPE is a world model that adapts MIRA's autoencoder and diffusion architecture to an FPS world.
-We integrate action decoupling inspired by SCOPE and train on CS:GO gameplay.
+SCOPE is an FPS world model built on Wan2.2-5B.
+It inserts a module into a pretrained model that learns video game actions to condition video generation.
+The zero-initialized action modules learn to turn a general video generator into a dynamic game that reacts to user inputs.
+SCOPE does not generate in real-time and thus cannot be considered a video game experience.
 
-Action decoupling in SCOPE separates local effects in generation, like weapon 
-recoil and muzzle flash, from global world generation, like the stable background.
+MIRA-SCOPE adapts MIRA's autoencoder and diffusion architecture with SCOPE's localized action conditioning to generate FPS worlds.
+Action decoupling separates local effects, like weapon recoil and muzzle flash, from global effects, like the stable background.
 In MIRA-SCOPE, all actions stay on MIRA's Adaptive LayerNorm (AdaLN) action conditioning path while scoped actions are routed
-through per-block cross-attention modules allowing the model to learn localized effects in the generated latent.
+through cross-attention modules that learn to localize effects within the generated latent.
+Preserving MIRA's compact latent diffusion architecture with few-step flow matching allows us to generate in real-time, resulting in a playable video game.
 
-https://github.com/user-attachments/assets/951460cb-6257-4d45-a5c1-e7d9770abf47
-
-[Demo](https://www.youtube.com/watch?v=P0m3G-bCoRA) with more samples and raw gameplay.
+Hu et al., *MIRA: Multiplayer Interactive World Models with Representation Autoencoders*, 2026. <br>
+[Paper](https://arxiv.org/abs/2607.05352) · [Code](https://github.com/mira-wm/mira)
 
 Tong et al., *SCOPE: Simulating Cross-game Operations in Playable Environments for FPS World Models*, 2026. <br>
 [Paper](https://arxiv.org/abs/2605.23345) · [Code](https://github.com/z2tong/SCOPE)
 
-### SCOPE Action Conditioning
+### Demo Video
+
+Samples of generated gameplay at 16 FPS recorded using the [Live Demo](#live-demo) with different checkpoints. \
+See [Training](#training) for specifications of checkpoints.
+
+https://github.com/user-attachments/assets/951460cb-6257-4d45-a5c1-e7d9770abf47
+
+Click [here](https://www.youtube.com/watch?v=P0m3G-bCoRA) for a demo with more samples and raw gameplay.
+
+### Action Conditioning
+
+Action conditioning is how the world model translates player actions to in-game effects in the generated frame.
+At each step it predicts the next latent from three things: past latents (context), flow matching timestep ($\tau$), and player actions (keyboard and mouse inputs) for that frame.
+Actions are encoded into an embedding, `a`, then the model denoises the next latent, which the codec decodes back to video frame(s).
+
+Conditioning happens inside every transformer block. The question is where and how `a` is injected.
+**AdaLN** applies a per-channel scale and shift identically at every spatial position.
+**SCOPE** additionally routes scoped actions through per-position (per-pixel) cross-attention, where each latent position attends to scoped action tokens independently.
+
+The table below compares the two routes step by step; the diagrams that follow break down each route.
+
+![algorithms-diagram](/public/adaln_vs_scope.png)
+
+Left: AdaLN (baseline) derives a scale and bias vector for each sublayer and applies Adaptive LayerNorm before each sublayer operates. \
+Right: SCOPE is essentially the same block with cross-attention of latent positions over scoped actions (latent positions are queries, scoped actions are keys and values).
 
 ![transformer-diagram](/public/transformer-diagram.png)
 
-SCOPE adds a step before AdaLN using `ActionModule`.
-AdaLN is always present for global action conditioning. SCOPE is an additive route for specifically chosen actions.
+> In the actual trained model, I set `ada_attn_ln=true` in the config, a small tweak that applies AdaLN modulation to all three sublayers in a transformer block (space attention, time attention, and the MLP), each with its own $\gamma$, $\beta$.
+
+The diagram shows that SCOPE inserts an `ActionModule` block between Time Attention and the FFN (AdaLN-Modulated MLP).
 
 ![adaln-diagram](/public/adaln-diagram.png)
 
-AdaLN is a global modulation of all positions of the latent grid (one gamma and beta, per channel scale and bias).
+The diagram shows AdaLN applied before the MLP (it's also applied before the attention sublayers, see note above). The same $\gamma$, $\beta$ pair is broadcast across the latent grid, so every position gets the same modulation.
 
 ![scope-diagram](/public/scope-diagram.png)
 
-The `ActionModule` block takes scoped actions (fire, reload, weapon change) from a separate encoder 
-and attends latent grid tokens to them (latent positions are queries, scoped actions are keys and values).
-This allows each region of the frame to learn action effects independently.
+The diagram shows that `ActionModule` takes scoped action tokens from a separate action encoder and has the latent positions attend to them.
 The output projection of `ActionModule` is zero-initialized so it's gradually learned.
 
 ### Dataset
@@ -64,11 +89,10 @@ compress CS:GO frames into a compact latent grid and reconstruct them back to ga
 
 On top of the frozen codec we trained the world model, a flow-matching diffusion transformer that predicts the next
 latent frames from past frames and player actions. To ablate SCOPE we trained two arms that are 
-identical in every way (same codec, same data, same hyperparameters) except how combat actions are conditioned. A baseline
-routes all actions through MIRA's AdaLN path, and a SCOPE arm that additionally routes localized combat actions through per-block
-cross-attention. Any difference in generation can be attributed to the SCOPE mechanism alone.
+identical in every way (same codec, same data, same hyperparameters) except how scoped actions are conditioned.
+Any difference in generation can be attributed to the SCOPE mechanism alone.
 
-For the one of SCOPE action conditioned checkpoints I implemented forward filling for weapon changes to improve weapon consistency in generated
+For one of the SCOPE action conditioned checkpoints I implemented forward filling for weapon changes to improve weapon consistency in generated
 frames. This means that weapon change actions behave like a continuous state that defines the weapon type for a given frame.
 
 ### Training Specifications
@@ -92,7 +116,7 @@ frames. This means that weapon change actions behave like a continuous state tha
 | Diffusion transformer hyperparams | 16 layers, 1024 hidden dim, 16 heads | 16 layers, 1024 hidden dim, 16 heads | 16 layers, 1024 hidden dim, 16 heads | 16 layers, 1024 hidden dim, 16 heads |
 | Training | 16 batch size, 2x5090 | 16 batch size, 2x5090 | 16 batch size, 2x5090 | 16 batch size, 2x5090 |
 | Context Window (seconds) | 2 | 3 | 2 | 3 |
-| Steps | 100k | 100k | 200k | 200k |
+| Steps | 100k | 200k | 100k | 200k |
 | Forward fill weapon changes | No | No | No | Yes |
 | Final Validation LPIPS | 0.269 | 0.282 | 0.267 | 0.278 |
 | Final Validation Total Loss | 0.283 | 0.284 | 0.276 | 0.273 |
@@ -203,8 +227,8 @@ uv run python scripts/demo/client.py \
 | Observation | Cause | Fix |
 | --- | --- | --- |
 | Weapon actions unstable, changing weapons back and forth isn't preserved | Weapons are tracked by change, not a continuous state | Forward-filling weapon change actions allows the model to learn from continuous state rather than re-generating from previous frames |
-| Player teleports locations after staring at wall | Featureless views beyond context window loses positional cues and the infers an arbitrary location simulating teleportation | Increase training context window length |
-| Inconsistent enemy interactions, player deaths are random | Enemies have no generation from their perspective nor conditioning signal so interactions are learned visually | Requires game state conditioning or joint multi-generation, MIRA's multiplayer Rocket League handles opponent interactions better because it conditions on all 4 players' actions in a contained map |
+| Player teleports after staring at something featureless | Featureless views beyond context window lose positional cues and the model infers an arbitrary location, simulating teleportation | Increase training context window length |
+| Inconsistent enemy interactions, player deaths are random | Enemies are never generated from their perspective and carry no conditioning signal so interactions are learned only visually | Requires game state conditioning or joint multi-view generation, MIRA's multiplayer Rocket League handles opponent interactions better because it conditions on all 4 players' actions in a contained map |
 
 Some limitations are shared with [DIAMOND](https://youtu.be/fOF0By6fOWw?si=3oMBtEmQe0VSG1fn&t=1738).
 
