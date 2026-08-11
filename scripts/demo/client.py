@@ -34,21 +34,21 @@ SENS_X, SENS_Y = 6.0, 3.0 # px -> mouse-dot multipliers, per axis (see bin range
 MOUSE_X_BINS = [-1000.0, -500.0, -300.0, -200.0, -100.0, -60.0, -30.0, -20.0, -10.0, -4.0, -2.0, 0.0, 2.0, 4.0, 10.0, 20.0, 30.0, 60.0, 100.0, 200.0, 300.0, 500.0, 1000.0]
 MOUSE_Y_BINS = [-200.0, -100.0, -50.0, -20.0, -10.0, -4.0, -2.0, 0.0, 2.0, 4.0, 10.0, 20.0, 50.0, 100.0, 200.0]
 
-HUD_KEYS = ["W", "A", "S", "D", "1", "2", "3", "R", "Fire"]
-HUD_H = 64
+KEYS = ["W", "A", "S", "D", "1", "2", "3", "R", "Fire"]
+KEYS_H = 64
 _FONT = None
 
-def draw_hud(screen, keys, y0, h):
+def draw_keys(screen, keys, y0, h):
     global _FONT
     if _FONT is None:
         _FONT = pygame.font.SysFont("consolas", 16, bold=True)
-    n = len(HUD_KEYS)
+    n = len(KEYS)
     w = screen.get_width()
     box = min(h - 12, w // n - 4)
     pad = (w - n * box) // (n + 1)
     screen.fill((20, 20, 24), (0, y0, w, h))
     x = pad
-    for name in HUD_KEYS:
+    for name in KEYS:
         on = keys[CSGO_KEYS.index(name)]
         rect = pygame.Rect(x, y0 + (h - box) // 2, box, box)
         pygame.draw.rect(screen, (60, 220, 90) if on else (48, 48, 54), rect, border_radius=6)
@@ -84,10 +84,13 @@ def main() -> None:
     ap.add_argument("--server", default="ws://localhost:8765")
     ap.add_argument("--sens-x", type=float, default=SENS_X)
     ap.add_argument("--sens-y", type=float, default=SENS_Y)
+    ap.add_argument("--show_keys", action="store_true", help="draw a key-press overlay below the frame")
     args = ap.parse_args()
 
+    keys_h = KEYS_H if args.show_keys else 0
+
     pygame.init()
-    screen = pygame.display.set_mode((FRAME_W * SCALE, FRAME_H * SCALE + HUD_H))
+    screen = pygame.display.set_mode((FRAME_W * SCALE, FRAME_H * SCALE + keys_h))
     pygame.display.set_caption("MIRA-SCOPE live demo")
     pygame.event.set_grab(True)
     pygame.mouse.set_visible(False)
@@ -119,7 +122,8 @@ def main() -> None:
                     surface = pygame.image.frombytes(img.tobytes(), img.size, "RGB")
                     frame_surf = pygame.transform.scale(surface, (FRAME_W * SCALE, FRAME_H * SCALE))
                     screen.blit(frame_surf, (0, 0))
-                    draw_hud(screen, keys, FRAME_H * SCALE, HUD_H)
+                    if args.show_keys:
+                        draw_keys(screen, keys, FRAME_H * SCALE, keys_h)
                     pygame.display.flip()
                     if args.record is not None:
                         recorded.append(pygame.surfarray.array3d(screen).swapaxes(0, 1))
